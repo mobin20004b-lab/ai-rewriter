@@ -442,11 +442,79 @@ class ContentScript {
       const start = activeElement.selectionStart ?? 0;
       const end = activeElement.selectionEnd ?? 0;
       if (start !== end) {
-        return activeElement.getBoundingClientRect();
+        return this.getInputSelectionRect(activeElement);
       }
     }
 
     return null;
+  }
+
+  private getInputSelectionRect(
+    element: HTMLInputElement | HTMLTextAreaElement
+  ): DOMRect | null {
+    const start = element.selectionStart ?? 0;
+    const end = element.selectionEnd ?? 0;
+    if (start === end) {
+      return null;
+    }
+
+    const computedStyle = window.getComputedStyle(element);
+    const mirror = document.createElement('div');
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.pointerEvents = 'none';
+    mirror.style.top = '0';
+    mirror.style.left = '-9999px';
+    mirror.style.overflow = 'hidden';
+    mirror.style.whiteSpace =
+      element instanceof HTMLTextAreaElement ? 'pre-wrap' : 'pre';
+    mirror.style.wordBreak = 'break-word';
+    mirror.style.boxSizing = computedStyle.boxSizing;
+    mirror.style.width = computedStyle.width;
+    mirror.style.height = computedStyle.height;
+    mirror.style.fontFamily = computedStyle.fontFamily;
+    mirror.style.fontSize = computedStyle.fontSize;
+    mirror.style.fontWeight = computedStyle.fontWeight;
+    mirror.style.fontStyle = computedStyle.fontStyle;
+    mirror.style.letterSpacing = computedStyle.letterSpacing;
+    mirror.style.lineHeight = computedStyle.lineHeight;
+    mirror.style.textTransform = computedStyle.textTransform;
+    mirror.style.textAlign = computedStyle.textAlign;
+    mirror.style.paddingTop = computedStyle.paddingTop;
+    mirror.style.paddingRight = computedStyle.paddingRight;
+    mirror.style.paddingBottom = computedStyle.paddingBottom;
+    mirror.style.paddingLeft = computedStyle.paddingLeft;
+    mirror.style.borderTopWidth = computedStyle.borderTopWidth;
+    mirror.style.borderRightWidth = computedStyle.borderRightWidth;
+    mirror.style.borderBottomWidth = computedStyle.borderBottomWidth;
+    mirror.style.borderLeftWidth = computedStyle.borderLeftWidth;
+
+    const beforeText = element.value.slice(0, start);
+    const selectionText = element.value.slice(start, end);
+    const afterText = element.value.slice(end);
+
+    mirror.append(document.createTextNode(beforeText));
+    const selectionSpan = document.createElement('span');
+    selectionSpan.textContent = selectionText || '\u200b';
+    mirror.append(selectionSpan);
+    mirror.append(document.createTextNode(afterText));
+
+    document.body.append(mirror);
+
+    const mirrorRect = mirror.getBoundingClientRect();
+    const selectionRect = selectionSpan.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const scrollLeft = element.scrollLeft;
+    const scrollTop = element.scrollTop;
+
+    const left = elementRect.left + (selectionRect.left - mirrorRect.left) - scrollLeft;
+    const top = elementRect.top + (selectionRect.top - mirrorRect.top) - scrollTop;
+    const width = Math.max(selectionRect.width, 1);
+    const height = Math.max(selectionRect.height, 1);
+
+    mirror.remove();
+
+    return new DOMRect(left, top, width, height);
   }
 
   private positionSelectionButton(rect: DOMRect): void {
