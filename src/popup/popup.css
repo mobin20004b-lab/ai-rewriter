@@ -134,6 +134,35 @@ button.secondary:hover {
   transition: opacity 0.2s;
 }
 
+.help-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #9aa0a6;
+}
+
+.help-text a {
+  color: #8ab4f8;
+  text-decoration: none;
+}
+
+.help-text a:hover {
+  text-decoration: underline;
+}
+
+.help-highlight {
+  color: #c7d2fe;
+}
+
+.field-invalid {
+  border-color: #e0a15b;
+  background-color: #33261d;
+}
+
+.field-invalid:focus {
+  border-color: #f0b874;
+}
+
 .status.success {
   background-color: #1e3a2b;
   color: #4caf50;

@@ -13,6 +13,12 @@
     <div class="form-group">
       <label for="apiKey">API Key:</label>
       <input type="password" id="apiKey" placeholder="Enter your API key">
+      <p class="help-text">
+        Get your OpenRouter key at
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>
+        or create a Gemini key in
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.
+      </p>
     </div>
 
     <div class="form-group">
@@ -30,6 +36,10 @@
         <button id="refreshModels" class="icon-button" title="Refresh Models">↻</button>
       </div>
       <datalist id="models-list"></datalist>
+      <p class="help-text">
+        OpenRouter models look like <span class="help-highlight">provider/model</span> (e.g., openai/gpt-4o-mini).
+        Gemini models look like <span class="help-highlight">gemini-1.5-pro</span>.
+      </p>
     </div>
 
     <div class="button-group">
