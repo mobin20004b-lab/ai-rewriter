@@ -16,10 +16,22 @@ chrome.runtime.onInstalled.addListener(() => {
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'rewriteText' && tab?.id) {
-    const selectedText = info.selectionText;
-    if (!selectedText) return;
-
+    let selectedText = info.selectionText || '';
     const tabId = tab.id; // Store tab.id to ensure it's defined throughout the callbacks
+
+    if (!selectedText) {
+      try {
+        const response = (await chrome.tabs.sendMessage(tabId, {
+          type: 'GET_SELECTED_TEXT',
+          payload: {},
+        } as Message)) as { selectedText?: string };
+        selectedText = response?.selectedText?.trim() || '';
+      } catch (error) {
+        selectedText = '';
+      }
+    }
+
+    if (!selectedText) return;
 
     try {
       const aiService = AIService.getInstance();
