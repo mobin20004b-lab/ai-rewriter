@@ -15,14 +15,37 @@ class ContentScript {
   private selectionText: string = '';
   private isSelectionButtonPressed: boolean = false;
   private selectionUpdateRaf: number | null = null;
+  private static readonly cursorStyleId = 'ai-rewriter-cursor-style';
 
   constructor() {
     this.initializeMessageListener();
+    this.ensureCursorStyles();
     this.createToastElement();
     this.createOverlay();
     this.createSuggestionCard();
     this.createSelectionButton();
     this.initializeSelectionListeners();
+  }
+
+  private ensureCursorStyles(): void {
+    if (document.getElementById(ContentScript.cursorStyleId)) {
+      return;
+    }
+
+    const style = document.createElement('style');
+    style.id = ContentScript.cursorStyleId;
+    style.textContent = `
+      @keyframes blink {
+        50% { opacity: 0; }
+      }
+
+      .typing-cursor {
+        display: inline-block;
+        animation: blink 1s step-end infinite;
+      }
+    `;
+
+    document.head?.appendChild(style);
   }
 
   private createToastElement(): void {
@@ -287,20 +310,7 @@ class ContentScript {
       const cursor = document.createElement('span');
       cursor.className = 'typing-cursor';
       cursor.textContent = '|';
-      cursor.style.cssText = `
-        display: inline-block;
-        animation: blink 1s step-end infinite;
-      `;
       content.appendChild(cursor);
-
-      // Add cursor blink animation
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes blink {
-          50% { opacity: 0; }
-        }
-      `;
-      document.head.appendChild(style);
     }
   }
 
