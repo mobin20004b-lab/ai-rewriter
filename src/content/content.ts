@@ -12,6 +12,7 @@ class ContentScript {
   private typingSpeed: number = 1; // Adjust typing speed (lower = faster)
   private selectionButton: HTMLButtonElement | null = null;
   private selectionText: string = '';
+  private isSelectionButtonPressed: boolean = false;
 
   constructor() {
     this.initializeMessageListener();
@@ -80,6 +81,17 @@ class ContentScript {
       transition: transform 0.15s ease, background-color 0.2s ease;
     `;
     this.selectionButton.textContent = 'AI';
+    this.selectionButton.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.isSelectionButtonPressed = true;
+    });
+    this.selectionButton.addEventListener('pointerup', () => {
+      this.isSelectionButtonPressed = false;
+    });
+    this.selectionButton.addEventListener('pointercancel', () => {
+      this.isSelectionButtonPressed = false;
+    });
     this.selectionButton.addEventListener('mouseenter', () => {
       if (this.selectionButton) {
         this.selectionButton.style.backgroundColor = '#4c4c4c';
@@ -98,6 +110,7 @@ class ContentScript {
       const text = this.selectionText.trim();
       if (!text) {
         this.hideSelectionButton();
+        this.isSelectionButtonPressed = false;
         return;
       }
       chrome.runtime.sendMessage({
@@ -105,6 +118,7 @@ class ContentScript {
         payload: { text },
       } as Message);
       this.hideSelectionButton();
+      this.isSelectionButtonPressed = false;
     });
     document.body.appendChild(this.selectionButton);
   }
@@ -344,6 +358,7 @@ class ContentScript {
 
   private handleSelectionChange(): void {
     if (!this.selectionButton) return;
+    if (this.isSelectionButtonPressed) return;
     if (this.overlay?.style.display === 'block') {
       this.hideSelectionButton();
       return;
@@ -369,14 +384,14 @@ class ContentScript {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
       const range = selection.getRangeAt(0);
+      const clientRects = range.getClientRects();
+      if (clientRects.length > 0) {
+        return clientRects[clientRects.length - 1];
+      }
+
       const rect = range.getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
         return rect;
-      }
-
-      const clientRects = range.getClientRects();
-      if (clientRects.length > 0) {
-        return clientRects[0];
       }
     }
 
