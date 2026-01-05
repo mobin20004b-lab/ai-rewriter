@@ -3,6 +3,7 @@ import { Message } from '../types';
 class ContentScript {
   private toast: HTMLDivElement | null = null;
   private suggestionCard: HTMLDivElement | null = null;
+  private suggestionContent: HTMLDivElement | null = null;
   private overlay: HTMLDivElement | null = null;
   private currentSelection: Selection | null = null;
   private rewrittenText: string = '';
@@ -187,6 +188,7 @@ class ContentScript {
     header.appendChild(closeButton);
 
     const content = document.createElement('div');
+    this.suggestionContent = content;
     content.style.cssText = `
       margin-bottom: 16px;
       color: #e0e0e0;
@@ -256,7 +258,7 @@ class ContentScript {
     this.originalText = window.getSelection()?.toString() || '';
 
     // Update content
-    const content = this.suggestionCard.querySelector('div:nth-child(2)') as HTMLDivElement;
+    const content = this.suggestionContent;
     if (content) {
       content.textContent = text;
     }
@@ -278,7 +280,7 @@ class ContentScript {
     this.showSuggestionCard('', true);
 
     // Update UI for streaming state
-    const content = this.suggestionCard.querySelector('div:nth-child(2)') as HTMLDivElement;
+    const content = this.suggestionContent;
     if (content) {
       content.textContent = '';
       // Add blinking cursor effect
@@ -305,7 +307,7 @@ class ContentScript {
   private appendStreamToken(token: string): void {
     if (!this.suggestionCard || !this.isStreaming) return;
 
-    const content = this.suggestionCard.querySelector('div:nth-child(2)') as HTMLDivElement;
+    const content = this.suggestionContent;
     if (!content) return;
 
     this.streamContent += token;
@@ -333,7 +335,7 @@ class ContentScript {
     this.rewrittenText = this.streamContent;
 
     // Remove cursor
-    const content = this.suggestionCard.querySelector('div:nth-child(2)') as HTMLDivElement;
+    const content = this.suggestionContent;
     if (content) {
       const cursor = content.querySelector('.typing-cursor');
       if (cursor) {
