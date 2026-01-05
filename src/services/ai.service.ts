@@ -1,10 +1,10 @@
 import { AIResponse, AIRequestPayload, Settings, StreamCallbacks, Provider } from '../types';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 export class AIService {
   private static instance: AIService;
-  private readonly OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-  private readonly OPENAPI_API_URL = 'https://api.openai.com/v1/chat/completions';
+  private readonly OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
   private abortController: AbortController | null = null;
 
   private constructor() {}
@@ -70,72 +70,34 @@ export class AIService {
         return this.rewriteWithGemini(text, settings.apiKey, settings.model, callbacks);
       }
 
-      const defaultModel = settings.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
-      const model = settings.model || defaultModel;
+      const model = settings.model || 'openai/gpt-4o-mini';
 
       const payload: AIRequestPayload = {
         model,
         max_tokens: 1200,
-        messages: [
-          {
-            role: 'user',
-            content: `refine it in basic english and only return the text: 
-            ${text}`,
-          },
-        ],
+        temperature: 0.2,
+        top_p: 1,
+        presence_penalty: 0.1,
+        frequency_penalty: 0.1,
+        messages: this.buildPromptMessages(text),
       };
 
       this.abortController = new AbortController();
-      
-      const API_URL = settings.provider === 'openrouter' ? this.OPENROUTER_API_URL : this.OPENAPI_API_URL;
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({ ...payload, stream: !!callbacks }),
-        signal: this.abortController.signal,
-      });
+      const client = this.createOpenAIClient(settings);
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.statusText}`);
-      }
-
-      // Handle streaming response
       if (callbacks) {
-        if (!response.body) {
-          throw new Error('Response body is null');
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+        const stream = await client.chat.completions.create(
+          { ...payload, stream: true },
+          { signal: this.abortController.signal }
+        );
         let fullContent = '';
 
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                if (data === '[DONE]') continue;
-
-                try {
-                  const parsed = JSON.parse(data);
-                  const token = parsed.choices[0]?.delta?.content || '';
-                  if (token) {
-                    fullContent += token;
-                    callbacks.onToken(token);
-                  }
-                } catch (e) {
-                  console.error('Error parsing streaming response:', e);
-                }
-              }
+          for await (const chunk of stream) {
+            const token = chunk.choices[0]?.delta?.content || '';
+            if (token) {
+              fullContent += token;
+              callbacks.onToken(token);
             }
           }
           callbacks.onComplete();
@@ -148,11 +110,12 @@ export class AIService {
         }
       }
 
-      // Handle non-streaming response
-      const data = await response.json();
+      const response = await client.chat.completions.create(payload, {
+        signal: this.abortController.signal,
+      });
       return {
         success: true,
-        content: data.choices[0].message.content.trim(),
+        content: response.choices[0]?.message?.content?.trim() || '',
         isStreaming: false,
       };
     } catch (error) {
@@ -163,6 +126,36 @@ export class AIService {
         isStreaming: false,
       };
     }
+  }
+
+  private buildPromptMessages(text: string): AIRequestPayload['messages'] {
+    return [
+      {
+        role: 'system',
+        content:
+          'You are a helpful editor. Rewrite text into clear, basic English. Only return the rewritten text without additional commentary.',
+      },
+      {
+        role: 'user',
+        content: 'Rewrite the following text in basic English: "We herein acknowledge receipt of the materials."',
+      },
+      {
+        role: 'assistant',
+        content: 'We confirm that we received the materials.',
+      },
+      {
+        role: 'user',
+        content: `Rewrite the following text in basic English and return only the rewritten text:\n${text}`,
+      },
+    ];
+  }
+
+  private createOpenAIClient(settings: Settings): OpenAI {
+    return new OpenAI({
+      apiKey: settings.apiKey,
+      baseURL: this.OPENROUTER_BASE_URL,
+      dangerouslyAllowBrowser: true,
+    });
   }
 
   private async rewriteWithGemini(text: string, apiKey: string, modelName: string | undefined, callbacks?: StreamCallbacks): Promise<AIResponse> {
