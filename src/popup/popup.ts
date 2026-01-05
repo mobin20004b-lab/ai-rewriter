@@ -1,19 +1,29 @@
 import { StorageService } from '../services/storage.service';
+import { AIService } from '../services/ai.service';
 import { Settings, Provider } from '../types';
 import './popup.css';
 
 class PopupUI {
   private storageService: StorageService;
+  private aiService: AIService;
   private apiKeyInput: HTMLInputElement;
   private providerSelect: HTMLSelectElement;
+  private modelInput: HTMLInputElement;
+  private modelDataList: HTMLDataListElement;
+  private refreshModelsButton: HTMLButtonElement;
   private saveButton: HTMLButtonElement;
   private resetButton: HTMLButtonElement;
   private statusElement: HTMLDivElement;
 
   constructor() {
     this.storageService = StorageService.getInstance();
+    this.aiService = AIService.getInstance();
+
     this.apiKeyInput = document.getElementById('apiKey') as HTMLInputElement;
     this.providerSelect = document.getElementById('provider') as HTMLSelectElement;
+    this.modelInput = document.getElementById('modelInput') as HTMLInputElement;
+    this.modelDataList = document.getElementById('models-list') as HTMLDataListElement;
+    this.refreshModelsButton = document.getElementById('refreshModels') as HTMLButtonElement;
     this.saveButton = document.getElementById('saveBtn') as HTMLButtonElement;
     this.resetButton = document.getElementById('resetBtn') as HTMLButtonElement;
     this.statusElement = document.getElementById('status') as HTMLDivElement;
@@ -26,17 +36,73 @@ class PopupUI {
     const settings = await this.storageService.getSettings();
     this.apiKeyInput.value = settings.apiKey;
     this.providerSelect.value = settings.provider || 'openrouter';
+    this.modelInput.value = settings.model || '';
+
+    if (settings.apiKey) {
+      this.fetchAndPopulateModels(settings.provider, settings.apiKey);
+    }
   }
 
   private setupEventListeners(): void {
     this.saveButton.addEventListener('click', () => this.saveSettings());
     this.resetButton.addEventListener('click', () => this.resetSettings());
+
+    this.refreshModelsButton.addEventListener('click', async () => {
+        const apiKey = this.apiKeyInput.value;
+        const provider = this.providerSelect.value as Provider;
+        if (apiKey) {
+            await this.fetchAndPopulateModels(provider, apiKey);
+            this.showStatus('Models refreshed!', 'success');
+        } else {
+            this.showStatus('Please enter API Key first', 'error');
+        }
+    });
+
+    // Auto-fetch models when provider changes if API key is present
+    this.providerSelect.addEventListener('change', () => {
+        const apiKey = this.apiKeyInput.value;
+        const provider = this.providerSelect.value as Provider;
+        if (apiKey) {
+            this.fetchAndPopulateModels(provider, apiKey);
+        }
+    });
+
+    // Also when API key is blurred, if it changed
+    this.apiKeyInput.addEventListener('blur', () => {
+        const apiKey = this.apiKeyInput.value;
+        const provider = this.providerSelect.value as Provider;
+        if (apiKey) {
+            this.fetchAndPopulateModels(provider, apiKey);
+        }
+    });
+  }
+
+  private async fetchAndPopulateModels(provider: Provider, apiKey: string): Promise<void> {
+    this.refreshModelsButton.disabled = true;
+    this.refreshModelsButton.textContent = '...';
+
+    try {
+        const models = await this.aiService.fetchModels(provider, apiKey);
+        this.modelDataList.innerHTML = '';
+        models.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            this.modelDataList.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to fetch models', error);
+        this.showStatus('Failed to fetch models', 'error');
+    } finally {
+        this.refreshModelsButton.disabled = false;
+        this.refreshModelsButton.textContent = '↻';
+    }
   }
 
   private async saveSettings(): Promise<void> {
     const settings: Settings = {
       apiKey: this.apiKeyInput.value,
-      provider: this.providerSelect.value as Provider
+      provider: this.providerSelect.value as Provider,
+      model: this.modelInput.value
     };
 
     try {
@@ -50,6 +116,8 @@ class PopupUI {
   private async resetSettings(): Promise<void> {
     this.apiKeyInput.value = '';
     this.providerSelect.value = 'openrouter';
+    this.modelInput.value = '';
+    this.modelDataList.innerHTML = '';
     await this.saveSettings();
   }
 
