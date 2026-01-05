@@ -1,21 +1,69 @@
 import { AIService } from '../services/ai.service';
 import { Message } from '../types';
 
+const menuItems = [
+  {
+    id: 'rewriteText',
+    title: 'Rewrite it',
+    instruction: 'Rewrite the following text in clear, basic English.',
+  },
+  {
+    id: 'rewriteShorter',
+    title: 'Make it shorter',
+    instruction: 'Shorten the following text while preserving the meaning.',
+  },
+  {
+    id: 'rewriteLonger',
+    title: 'Make it longer',
+    instruction: 'Expand the following text with more detail while keeping the meaning.',
+  },
+  {
+    id: 'rewriteFormal',
+    title: 'Make it formal',
+    instruction: 'Rewrite the following text in a formal, professional tone.',
+  },
+  {
+    id: 'rewriteCasual',
+    title: 'Make it casual',
+    instruction: 'Rewrite the following text in a friendly, casual tone.',
+  },
+  {
+    id: 'rewriteGrammar',
+    title: 'Fix grammar',
+    instruction: 'Fix grammar, spelling, and punctuation while keeping the same tone.',
+  },
+  {
+    id: 'rewriteSimplify',
+    title: 'Simplify',
+    instruction: 'Simplify the following text to be easier to understand.',
+  },
+];
+
 // Remove existing menu items if any
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: 'rewriteText',
-      title: 'AI Rewriter | Rewrite it',
+      id: 'aiRewriter',
+      title: 'AI Rewriter',
       contexts: ['selection', 'editable'],
       documentUrlPatterns: ['<all_urls>']
+    });
+    menuItems.forEach((item) => {
+      chrome.contextMenus.create({
+        id: item.id,
+        parentId: 'aiRewriter',
+        title: item.title,
+        contexts: ['selection', 'editable'],
+        documentUrlPatterns: ['<all_urls>'],
+      });
     });
   });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'rewriteText' && tab?.id) {
+  const menuItem = menuItems.find((item) => item.id === info.menuItemId);
+  if (menuItem && tab?.id) {
     let selectedText = info.selectionText || '';
     const tabId = tab.id; // Store tab.id to ensure it's defined throughout the callbacks
 
@@ -42,7 +90,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         payload: {},
       } as Message);
 
-      const response = await aiService.rewriteText(selectedText, {
+      const response = await aiService.rewriteText(selectedText, { instruction: menuItem.instruction }, {
         onToken: (token: string) => {
           chrome.tabs.sendMessage(tabId, {
             type: 'STREAM_TOKEN',

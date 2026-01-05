@@ -2,6 +2,10 @@ import { AIResponse, AIRequestPayload, Settings, StreamCallbacks, Provider } fro
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenAI from 'openai';
 
+export interface RewriteOptions {
+  instruction?: string;
+}
+
 export class AIService {
   private static instance: AIService;
   private readonly OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -54,7 +58,7 @@ export class AIService {
     }
   }
 
-  public async rewriteText(text: string, callbacks?: StreamCallbacks): Promise<AIResponse> {
+  public async rewriteText(text: string, options: RewriteOptions = {}, callbacks?: StreamCallbacks): Promise<AIResponse> {
     try {
       const settings = await this.getSettings();
       
@@ -67,7 +71,7 @@ export class AIService {
       }
 
       if (settings.provider === 'gemini') {
-        return this.rewriteWithGemini(text, settings.apiKey, settings.model, callbacks);
+        return this.rewriteWithGemini(text, settings.apiKey, settings.model, options, callbacks);
       }
 
       const model = settings.model || 'openai/gpt-4o-mini';
@@ -79,7 +83,7 @@ export class AIService {
         top_p: 1,
         presence_penalty: 0.1,
         frequency_penalty: 0.1,
-        messages: this.buildPromptMessages(text),
+        messages: this.buildPromptMessages(text, options),
       };
 
       this.abortController = new AbortController();
@@ -128,16 +132,17 @@ export class AIService {
     }
   }
 
-  private buildPromptMessages(text: string): AIRequestPayload['messages'] {
+  private buildPromptMessages(text: string, options: RewriteOptions): AIRequestPayload['messages'] {
+    const instruction = options.instruction?.trim() || 'Rewrite the following text in clear, basic English.';
     return [
       {
         role: 'system',
         content:
-          'You are a helpful editor. Rewrite text into clear, basic English. Only return the rewritten text without additional commentary.',
+          'You are a helpful editor. Follow the rewrite instruction and only return the rewritten text without additional commentary.',
       },
       {
         role: 'user',
-        content: 'Rewrite the following text in basic English: "We herein acknowledge receipt of the materials."',
+        content: `${instruction}\n"We herein acknowledge receipt of the materials."`,
       },
       {
         role: 'assistant',
@@ -145,7 +150,7 @@ export class AIService {
       },
       {
         role: 'user',
-        content: `Rewrite the following text in basic English and return only the rewritten text:\n${text}`,
+        content: `${instruction}\n${text}`,
       },
     ];
   }
@@ -158,13 +163,19 @@ export class AIService {
     });
   }
 
-  private async rewriteWithGemini(text: string, apiKey: string, modelName: string | undefined, callbacks?: StreamCallbacks): Promise<AIResponse> {
+  private async rewriteWithGemini(
+    text: string,
+    apiKey: string,
+    modelName: string | undefined,
+    options: RewriteOptions,
+    callbacks?: StreamCallbacks
+  ): Promise<AIResponse> {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: modelName || "gemini-1.5-flash" });
 
-      const prompt = `refine it in basic english and only return the text:
-      ${text}`;
+      const instruction = options.instruction?.trim() || 'Rewrite the following text in clear, basic English.';
+      const prompt = `${instruction}\n${text}`;
 
       if (callbacks) {
         const result = await model.generateContentStream(prompt);
