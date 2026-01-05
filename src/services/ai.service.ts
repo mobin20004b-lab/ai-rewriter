@@ -1,4 +1,5 @@
 import { AIResponse, AIRequestPayload, Settings, StreamCallbacks } from '../types';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export class AIService {
   private static instance: AIService;
@@ -34,8 +35,12 @@ export class AIService {
         return {
           success: false,
           content: '',
-          error: 'API key not found. Please set your OpenRouter API key in the extension settings.',
+          error: 'API key not found. Please set your API key in the extension settings.',
         };
+      }
+
+      if (settings.provider === 'gemini') {
+        return this.rewriteWithGemini(text, settings.apiKey, callbacks);
       }
 
       const model = settings.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
@@ -128,6 +133,52 @@ export class AIService {
         content: '',
         error: error instanceof Error ? error.message : 'An unknown error occurred',
         isStreaming: false,
+      };
+    }
+  }
+
+  private async rewriteWithGemini(text: string, apiKey: string, callbacks?: StreamCallbacks): Promise<AIResponse> {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `refine it in basic english and only return the text:
+      ${text}`;
+
+      if (callbacks) {
+        const result = await model.generateContentStream(prompt);
+        let fullContent = '';
+
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            fullContent += chunkText;
+            callbacks.onToken(chunkText);
+          }
+          callbacks.onComplete();
+          return { success: true, content: fullContent, isStreaming: true };
+        } catch (error) {
+           if (error instanceof Error) {
+            callbacks.onError(error.message);
+          }
+          throw error;
+        }
+      } else {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return {
+          success: true,
+          content: text.trim(),
+          isStreaming: false
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        error: error instanceof Error ? error.message : 'An unknown error occurred with Gemini',
+        isStreaming: false
       };
     }
   }

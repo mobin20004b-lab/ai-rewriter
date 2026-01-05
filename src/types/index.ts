@@ -1,4 +1,4 @@
-export type Provider = 'openrouter' | 'openapi';
+export type Provider = 'openrouter' | 'openapi' | 'gemini';
 
 export interface Settings {
   apiKey: string;

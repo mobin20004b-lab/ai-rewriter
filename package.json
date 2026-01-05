@@ -9,7 +9,11 @@
     "dev": "webpack --config webpack.config.js --mode=development",
     "prod": "webpack --config webpack.config.js --mode=production"
   },
-  "keywords": ["chrome-extension", "ai", "text-rewriter"],
+  "keywords": [
+    "chrome-extension",
+    "ai",
+    "text-rewriter"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
@@ -26,6 +30,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "openai": "^4.24.1"
   }
 }
