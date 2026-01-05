@@ -39,25 +39,31 @@ const menuItems = [
   },
 ];
 
-// Remove existing menu items if any
-chrome.runtime.onInstalled.addListener(() => {
+const createContextMenus = () => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: 'aiRewriter',
       title: 'AI Rewriter',
-      contexts: ['selection', 'editable'],
-      documentUrlPatterns: ['<all_urls>']
+      contexts: ['all'],
     });
     menuItems.forEach((item) => {
       chrome.contextMenus.create({
         id: item.id,
         parentId: 'aiRewriter',
         title: item.title,
-        contexts: ['selection', 'editable'],
-        documentUrlPatterns: ['<all_urls>'],
+        contexts: ['all'],
       });
     });
   });
+};
+
+// Ensure menu items exist on install/update and browser startup
+chrome.runtime.onInstalled.addListener(() => {
+  createContextMenus();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  createContextMenus();
 });
 
 // Handle context menu clicks
