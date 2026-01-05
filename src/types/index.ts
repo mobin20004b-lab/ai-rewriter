@@ -1,4 +1,4 @@
-export type Provider = 'openrouter' | 'openapi' | 'gemini';
+export type Provider = 'openrouter' | 'gemini';
 
 export interface Settings {
   apiKey: string;
@@ -30,6 +30,10 @@ export interface AIRequestPayload {
     content: string;
   }>;
   max_tokens?: number;
+  temperature?: number;
+  top_p?: number;
+  presence_penalty?: number;
+  frequency_penalty?: number;
 }
 
 export interface StreamCallbacks {

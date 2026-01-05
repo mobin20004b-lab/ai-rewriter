@@ -14,10 +14,11 @@ export class StorageService {
 
   public async getSettings(): Promise<Settings> {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiKey', 'provider'], (result) => {
+      chrome.storage.sync.get(['apiKey', 'provider', 'model'], (result) => {
         resolve({
           apiKey: result.apiKey || '',
-          provider: result.provider || '',
+          provider: result.provider || 'openrouter',
+          model: result.model || '',
         });
       });
     });
