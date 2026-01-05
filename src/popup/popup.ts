@@ -60,6 +60,7 @@ class PopupUI {
 
     // Auto-fetch models when provider changes if API key is present
     this.providerSelect.addEventListener('change', () => {
+        this.providerSelect.classList.remove('field-invalid');
         const apiKey = this.apiKeyInput.value;
         const provider = this.providerSelect.value as Provider;
         if (apiKey) {
@@ -69,11 +70,16 @@ class PopupUI {
 
     // Also when API key is blurred, if it changed
     this.apiKeyInput.addEventListener('blur', () => {
+        this.apiKeyInput.classList.remove('field-invalid');
         const apiKey = this.apiKeyInput.value;
         const provider = this.providerSelect.value as Provider;
         if (apiKey) {
             this.fetchAndPopulateModels(provider, apiKey);
         }
+    });
+
+    this.modelInput.addEventListener('input', () => {
+        this.modelInput.classList.remove('field-invalid');
     });
   }
 
@@ -98,7 +104,11 @@ class PopupUI {
     }
   }
 
-  private async saveSettings(): Promise<void> {
+  private async saveSettings(skipValidation = false): Promise<void> {
+    if (!skipValidation && !this.validateInputs()) {
+      return;
+    }
+
     const settings: Settings = {
       apiKey: this.apiKeyInput.value,
       provider: this.providerSelect.value as Provider,
@@ -118,7 +128,60 @@ class PopupUI {
     this.providerSelect.value = 'openrouter';
     this.modelInput.value = '';
     this.modelDataList.innerHTML = '';
-    await this.saveSettings();
+    this.clearValidationStates();
+    await this.saveSettings(true);
+  }
+
+  private validateInputs(): boolean {
+    this.clearValidationStates();
+
+    const apiKey = this.apiKeyInput.value.trim();
+    if (!apiKey) {
+      this.apiKeyInput.classList.add('field-invalid');
+      this.showStatus('API key is required to save settings.', 'error');
+      return false;
+    }
+
+    const provider = this.providerSelect.value as Provider;
+    if (!provider) {
+      this.providerSelect.classList.add('field-invalid');
+      this.showStatus('Please choose a provider.', 'error');
+      return false;
+    }
+
+    const model = this.modelInput.value.trim();
+    if (!model) {
+      this.modelInput.classList.add('field-invalid');
+      this.showStatus('Please enter a model name.', 'error');
+      return false;
+    }
+
+    const modelError = this.getModelFormatError(provider, model);
+    if (modelError) {
+      this.modelInput.classList.add('field-invalid');
+      this.showStatus(modelError, 'error');
+      return false;
+    }
+
+    return true;
+  }
+
+  private getModelFormatError(provider: Provider, model: string): string | null {
+    if (provider === 'openrouter' && !model.includes('/')) {
+      return 'OpenRouter models should look like "provider/model".';
+    }
+
+    if (provider === 'gemini' && !/^gemini-[\w.-]+$/i.test(model)) {
+      return 'Gemini models should look like "gemini-1.5-pro".';
+    }
+
+    return null;
+  }
+
+  private clearValidationStates(): void {
+    this.apiKeyInput.classList.remove('field-invalid');
+    this.providerSelect.classList.remove('field-invalid');
+    this.modelInput.classList.remove('field-invalid');
   }
 
   private showStatus(message: string, type: 'success' | 'error'): void {
