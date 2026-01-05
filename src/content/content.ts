@@ -10,12 +10,16 @@ class ContentScript {
   private isStreaming: boolean = false;
   private streamContent: string = '';
   private typingSpeed: number = 1; // Adjust typing speed (lower = faster)
+  private selectionButton: HTMLButtonElement | null = null;
+  private selectionText: string = '';
 
   constructor() {
     this.initializeMessageListener();
     this.createToastElement();
     this.createOverlay();
     this.createSuggestionCard();
+    this.createSelectionButton();
+    this.initializeSelectionListeners();
   }
 
   private createToastElement(): void {
@@ -51,6 +55,58 @@ class ContentScript {
       backdrop-filter: blur(2px);
     `;
     document.body.appendChild(this.overlay);
+  }
+
+  private createSelectionButton(): void {
+    this.selectionButton = document.createElement('button');
+    this.selectionButton.type = 'button';
+    this.selectionButton.setAttribute('aria-label', 'Rewrite selected text');
+    this.selectionButton.style.cssText = `
+      position: fixed;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: #3c3c3c;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+      z-index: 10002;
+      transition: transform 0.15s ease, background-color 0.2s ease;
+    `;
+    this.selectionButton.textContent = 'AI';
+    this.selectionButton.addEventListener('mouseenter', () => {
+      if (this.selectionButton) {
+        this.selectionButton.style.backgroundColor = '#4c4c4c';
+        this.selectionButton.style.transform = 'scale(1.05)';
+      }
+    });
+    this.selectionButton.addEventListener('mouseleave', () => {
+      if (this.selectionButton) {
+        this.selectionButton.style.backgroundColor = '#3c3c3c';
+        this.selectionButton.style.transform = 'scale(1)';
+      }
+    });
+    this.selectionButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const text = this.selectionText.trim();
+      if (!text) {
+        this.hideSelectionButton();
+        return;
+      }
+      chrome.runtime.sendMessage({
+        type: 'REWRITE_SELECTED_TEXT',
+        payload: { text },
+      } as Message);
+      this.hideSelectionButton();
+    });
+    document.body.appendChild(this.selectionButton);
   }
 
   private createSuggestionCard(): void {
@@ -195,6 +251,8 @@ class ContentScript {
       this.overlay.style.display = 'block';
       this.suggestionCard.style.display = 'block';
     }
+
+    this.hideSelectionButton();
   }
 
   private startStreaming(): void {
@@ -273,6 +331,94 @@ class ContentScript {
     if (this.suggestionCard && this.overlay) {
       this.suggestionCard.style.display = 'none';
       this.overlay.style.display = 'none';
+    }
+  }
+
+  private initializeSelectionListeners(): void {
+    document.addEventListener('selectionchange', () => this.handleSelectionChange());
+    document.addEventListener('mouseup', () => this.handleSelectionChange());
+    document.addEventListener('keyup', () => this.handleSelectionChange());
+    document.addEventListener('scroll', () => this.hideSelectionButton(), true);
+    window.addEventListener('resize', () => this.hideSelectionButton());
+  }
+
+  private handleSelectionChange(): void {
+    if (!this.selectionButton) return;
+    if (this.overlay?.style.display === 'block') {
+      this.hideSelectionButton();
+      return;
+    }
+
+    const selectedText = this.getSelectedText();
+    if (!selectedText) {
+      this.hideSelectionButton();
+      return;
+    }
+
+    const rect = this.getSelectionRect();
+    if (!rect) {
+      this.hideSelectionButton();
+      return;
+    }
+
+    this.selectionText = selectedText;
+    this.positionSelectionButton(rect);
+  }
+
+  private getSelectionRect(): DOMRect | null {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        return rect;
+      }
+
+      const clientRects = range.getClientRects();
+      if (clientRects.length > 0) {
+        return clientRects[0];
+      }
+    }
+
+    const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+    if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement) {
+      const start = activeElement.selectionStart ?? 0;
+      const end = activeElement.selectionEnd ?? 0;
+      if (start !== end) {
+        return activeElement.getBoundingClientRect();
+      }
+    }
+
+    return null;
+  }
+
+  private positionSelectionButton(rect: DOMRect): void {
+    if (!this.selectionButton) return;
+
+    const buttonSize = 28;
+    const padding = 8;
+    let top = rect.top - buttonSize - padding;
+    if (top < padding) {
+      top = rect.bottom + padding;
+    }
+
+    let left = rect.left + rect.width - buttonSize;
+    if (left < padding) {
+      left = padding;
+    }
+
+    if (left + buttonSize > window.innerWidth - padding) {
+      left = window.innerWidth - buttonSize - padding;
+    }
+
+    this.selectionButton.style.top = `${top}px`;
+    this.selectionButton.style.left = `${left}px`;
+    this.selectionButton.style.display = 'flex';
+  }
+
+  private hideSelectionButton(): void {
+    if (this.selectionButton) {
+      this.selectionButton.style.display = 'none';
     }
   }
 
