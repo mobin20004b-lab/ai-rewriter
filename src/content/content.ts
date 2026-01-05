@@ -13,6 +13,7 @@ class ContentScript {
   private selectionButton: HTMLButtonElement | null = null;
   private selectionText: string = '';
   private isSelectionButtonPressed: boolean = false;
+  private selectionUpdateRaf: number | null = null;
 
   constructor() {
     this.initializeMessageListener();
@@ -349,16 +350,28 @@ class ContentScript {
   }
 
   private initializeSelectionListeners(): void {
-    document.addEventListener('selectionchange', () => this.handleSelectionChange());
-    document.addEventListener('mouseup', () => this.handleSelectionChange());
-    document.addEventListener('keyup', () => this.handleSelectionChange());
+    document.addEventListener('selectionchange', () => this.scheduleSelectionUpdate());
+    document.addEventListener('mouseup', () => this.scheduleSelectionUpdate());
+    document.addEventListener('keyup', () => this.scheduleSelectionUpdate());
     document.addEventListener('scroll', () => this.hideSelectionButton(), true);
     window.addEventListener('resize', () => this.hideSelectionButton());
+  }
+
+  private scheduleSelectionUpdate(): void {
+    if (this.selectionUpdateRaf !== null) {
+      cancelAnimationFrame(this.selectionUpdateRaf);
+    }
+
+    this.selectionUpdateRaf = requestAnimationFrame(() => {
+      this.selectionUpdateRaf = null;
+      this.handleSelectionChange();
+    });
   }
 
   private handleSelectionChange(): void {
     if (!this.selectionButton) return;
     if (this.isSelectionButtonPressed) return;
+    if (document.activeElement === this.selectionButton) return;
     if (this.overlay?.style.display === 'block') {
       this.hideSelectionButton();
       return;
@@ -384,14 +397,14 @@ class ContentScript {
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
       const range = selection.getRangeAt(0);
-      const clientRects = range.getClientRects();
-      if (clientRects.length > 0) {
-        return clientRects[clientRects.length - 1];
-      }
-
       const rect = range.getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
         return rect;
+      }
+
+      const clientRects = range.getClientRects();
+      if (clientRects.length > 0) {
+        return clientRects[clientRects.length - 1];
       }
     }
 
@@ -435,6 +448,8 @@ class ContentScript {
     if (this.selectionButton) {
       this.selectionButton.style.display = 'none';
     }
+    this.selectionText = '';
+    this.isSelectionButtonPressed = false;
   }
 
   private showToast(message: string, isError: boolean = false): void {
