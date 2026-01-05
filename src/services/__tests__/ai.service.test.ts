@@ -131,7 +131,7 @@ describe('AIService', () => {
     };
 
     const service = AIService.getInstance();
-    const response = await service.rewriteText('Original text.', callbacks);
+    const response = await service.rewriteText('Original text.', {}, callbacks);
 
     expect(response).toEqual({
       success: true,

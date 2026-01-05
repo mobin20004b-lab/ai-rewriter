@@ -290,9 +290,36 @@ class ContentScript {
     }, 3000);
   }
 
+  private getSelectedText(): string {
+    const selectionText = window.getSelection()?.toString().trim();
+    if (selectionText) {
+      return selectionText;
+    }
+
+    const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+    if (!activeElement) return '';
+
+    if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement) {
+      const start = activeElement.selectionStart ?? 0;
+      const end = activeElement.selectionEnd ?? 0;
+      if (start !== end) {
+        return activeElement.value.substring(start, end);
+      }
+    }
+
+    if (activeElement.isContentEditable) {
+      return window.getSelection()?.toString().trim() ?? '';
+    }
+
+    return '';
+  }
+
   private initializeMessageListener(): void {
-    chrome.runtime.onMessage.addListener((message: Message) => {
+    chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
       switch (message.type) {
+        case 'GET_SELECTED_TEXT':
+          sendResponse({ selectedText: this.getSelectedText() });
+          return true;
         case 'REWRITE_TEXT':
           if (message.payload.text) {
             this.showSuggestionCard(message.payload.text);
@@ -317,6 +344,7 @@ class ContentScript {
           }
           break;
       }
+      return false;
     });
   }
 }

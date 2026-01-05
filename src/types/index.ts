@@ -14,7 +14,15 @@ export interface AIResponse {
 }
 
 export interface Message {
-  type: 'REWRITE_TEXT' | 'REPLACE_TEXT' | 'SHOW_ERROR' | 'STREAM_START' | 'STREAM_TOKEN' | 'STREAM_END' | 'STREAM_ERROR';
+  type:
+    | 'REWRITE_TEXT'
+    | 'REPLACE_TEXT'
+    | 'SHOW_ERROR'
+    | 'STREAM_START'
+    | 'STREAM_TOKEN'
+    | 'STREAM_END'
+    | 'STREAM_ERROR'
+    | 'GET_SELECTED_TEXT';
   payload: {
     text?: string;
     error?: string;
