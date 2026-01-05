@@ -20,7 +20,17 @@
       <select id="provider">
         <option value="openrouter">OpenRouter</option>
         <option value="openapi">OpenAPI</option>
+        <option value="gemini">Gemini</option>
       </select>
+    </div>
+
+    <div class="form-group">
+      <label for="modelInput">Model:</label>
+      <div class="input-with-button">
+        <input type="text" id="modelInput" list="models-list" placeholder="Select or search model...">
+        <button id="refreshModels" class="icon-button" title="Refresh Models">↻</button>
+      </div>
+      <datalist id="models-list"></datalist>
     </div>
 
     <div class="button-group">

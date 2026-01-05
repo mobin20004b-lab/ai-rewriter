@@ -1,4 +1,5 @@
-import { AIResponse, AIRequestPayload, Settings, StreamCallbacks } from '../types';
+import { AIResponse, AIRequestPayload, Settings, StreamCallbacks, Provider } from '../types';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export class AIService {
   private static instance: AIService;
@@ -17,13 +18,40 @@ export class AIService {
 
   private async getSettings(): Promise<Settings> {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(['apiKey', 'provider'], (result) => {
+      chrome.storage.sync.get(['apiKey', 'provider', 'model'], (result) => {
         resolve({
           apiKey: result.apiKey || '',
           provider: result.provider || 'openrouter',
+          model: result.model,
         });
       });
     });
+  }
+
+  public async fetchModels(provider: Provider, apiKey: string): Promise<string[]> {
+    try {
+      if (provider === 'openrouter') {
+        const response = await fetch('https://openrouter.ai/api/v1/models');
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.data.map((m: any) => m.id);
+      } else if (provider === 'gemini') {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        // Gemini returns model names like "models/gemini-1.5-flash".
+        // We can just use them as is, or strip "models/".
+        // The SDK usually accepts "gemini-1.5-flash" or "models/gemini-1.5-flash".
+        // Let's strip "models/" for cleaner UI, but ensure we handle it correctly.
+        return (data.models || [])
+          .map((m: any) => m.name.replace(/^models\//, ''))
+          .filter((name: string) => name.includes('gemini')); // Filter for gemini models to be safe
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching models:', error);
+      return [];
+    }
   }
 
   public async rewriteText(text: string, callbacks?: StreamCallbacks): Promise<AIResponse> {
@@ -34,11 +62,16 @@ export class AIService {
         return {
           success: false,
           content: '',
-          error: 'API key not found. Please set your OpenRouter API key in the extension settings.',
+          error: 'API key not found. Please set your API key in the extension settings.',
         };
       }
 
-      const model = settings.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
+      if (settings.provider === 'gemini') {
+        return this.rewriteWithGemini(text, settings.apiKey, settings.model, callbacks);
+      }
+
+      const defaultModel = settings.provider === 'openrouter' ? 'openai/gpt-4o-mini' : 'gpt-4o-mini';
+      const model = settings.model || defaultModel;
 
       const payload: AIRequestPayload = {
         model,
@@ -128,6 +161,52 @@ export class AIService {
         content: '',
         error: error instanceof Error ? error.message : 'An unknown error occurred',
         isStreaming: false,
+      };
+    }
+  }
+
+  private async rewriteWithGemini(text: string, apiKey: string, modelName: string | undefined, callbacks?: StreamCallbacks): Promise<AIResponse> {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: modelName || "gemini-1.5-flash" });
+
+      const prompt = `refine it in basic english and only return the text:
+      ${text}`;
+
+      if (callbacks) {
+        const result = await model.generateContentStream(prompt);
+        let fullContent = '';
+
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            fullContent += chunkText;
+            callbacks.onToken(chunkText);
+          }
+          callbacks.onComplete();
+          return { success: true, content: fullContent, isStreaming: true };
+        } catch (error) {
+           if (error instanceof Error) {
+            callbacks.onError(error.message);
+          }
+          throw error;
+        }
+      } else {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        return {
+          success: true,
+          content: text.trim(),
+          isStreaming: false
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        content: '',
+        error: error instanceof Error ? error.message : 'An unknown error occurred with Gemini',
+        isStreaming: false
       };
     }
   }

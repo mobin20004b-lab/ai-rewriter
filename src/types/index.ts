@@ -1,8 +1,9 @@
-export type Provider = 'openrouter' | 'openapi';
+export type Provider = 'openrouter' | 'openapi' | 'gemini';
 
 export interface Settings {
   apiKey: string;
   provider: Provider;
+  model?: string;
 }
 
 export interface AIResponse {

@@ -62,6 +62,34 @@ input:focus, textarea:focus, select:focus {
   background-color: #333333;
 }
 
+.input-with-button {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-button input {
+  flex: 1;
+}
+
+.icon-button {
+  padding: 8px;
+  background-color: #404040;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+}
+
+.icon-button:hover {
+  background-color: #505050;
+  border-color: #505050;
+}
+
 .button-group {
   display: flex;
   gap: 8px;
