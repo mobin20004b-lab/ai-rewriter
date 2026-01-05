@@ -39,9 +39,9 @@ const setChromeSettings = (settings: { apiKey: string; provider: 'openrouter'; m
         }),
       },
     },
-  };
+  } as unknown as typeof chrome;
 
-  (globalThis as typeof globalThis & { chrome?: unknown }).chrome = chromeMock;
+  (globalThis as typeof globalThis & { chrome?: typeof chrome }).chrome = chromeMock;
 };
 
 describe('AIService', () => {
