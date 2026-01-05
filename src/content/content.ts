@@ -13,6 +13,7 @@ class ContentScript {
   private typingSpeed: number = 1; // Adjust typing speed (lower = faster)
   private selectionButton: HTMLButtonElement | null = null;
   private selectionText: string = '';
+  private pendingSelectionText: string = '';
   private isSelectionButtonPressed: boolean = false;
   private selectionUpdateRaf: number | null = null;
   private escapeKeyListenerAttached: boolean = false;
@@ -113,12 +114,23 @@ class ContentScript {
       event.preventDefault();
       event.stopPropagation();
       this.isSelectionButtonPressed = true;
+      const selectionText = this.getSelectedText().trim();
+      if (selectionText) {
+        this.pendingSelectionText = selectionText;
+        this.selectionText = selectionText;
+      }
     });
     this.selectionButton.addEventListener('pointerup', () => {
       this.isSelectionButtonPressed = false;
+      setTimeout(() => {
+        if (!this.isSelectionButtonPressed) {
+          this.pendingSelectionText = '';
+        }
+      }, 0);
     });
     this.selectionButton.addEventListener('pointercancel', () => {
       this.isSelectionButtonPressed = false;
+      this.pendingSelectionText = '';
     });
     this.selectionButton.addEventListener('mouseenter', () => {
       if (this.selectionButton) {
@@ -135,7 +147,10 @@ class ContentScript {
     this.selectionButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const text = this.selectionText.trim();
+      const text =
+        this.pendingSelectionText.trim() ||
+        this.getSelectedText().trim() ||
+        this.selectionText.trim();
       if (!text) {
         this.hideSelectionButton();
         this.isSelectionButtonPressed = false;
@@ -145,6 +160,7 @@ class ContentScript {
         type: 'REWRITE_SELECTED_TEXT',
         payload: { text },
       } as Message);
+      this.pendingSelectionText = '';
       this.hideSelectionButton();
       this.isSelectionButtonPressed = false;
     });
@@ -546,6 +562,7 @@ class ContentScript {
       this.selectionButton.style.display = 'none';
     }
     this.selectionText = '';
+    this.pendingSelectionText = '';
     this.isSelectionButtonPressed = false;
   }
 
