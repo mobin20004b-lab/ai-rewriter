@@ -15,6 +15,7 @@ class ContentScript {
   private selectionText: string = '';
   private isSelectionButtonPressed: boolean = false;
   private selectionUpdateRaf: number | null = null;
+  private escapeKeyListenerAttached: boolean = false;
   private static readonly cursorStyleId = 'ai-rewriter-cursor-style';
 
   constructor() {
@@ -23,6 +24,7 @@ class ContentScript {
     this.createToastElement();
     this.createOverlay();
     this.createSuggestionCard();
+    this.initializeDismissListeners();
     this.createSelectionButton();
     this.initializeSelectionListeners();
   }
@@ -80,6 +82,7 @@ class ContentScript {
       display: none;
       backdrop-filter: blur(2px);
     `;
+    this.overlay.addEventListener('click', () => this.hideSuggestionCard());
     document.body.appendChild(this.overlay);
   }
 
@@ -359,6 +362,20 @@ class ContentScript {
       this.suggestionCard.style.display = 'none';
       this.overlay.style.display = 'none';
     }
+  }
+
+  private initializeDismissListeners(): void {
+    if (this.escapeKeyListenerAttached) {
+      return;
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.suggestionCard?.style.display === 'block') {
+        this.hideSuggestionCard();
+      }
+    });
+
+    this.escapeKeyListenerAttached = true;
   }
 
   private initializeSelectionListeners(): void {
