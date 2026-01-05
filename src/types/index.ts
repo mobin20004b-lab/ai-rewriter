@@ -22,7 +22,8 @@ export interface Message {
     | 'STREAM_TOKEN'
     | 'STREAM_END'
     | 'STREAM_ERROR'
-    | 'GET_SELECTED_TEXT';
+    | 'GET_SELECTED_TEXT'
+    | 'REWRITE_SELECTED_TEXT';
   payload: {
     text?: string;
     error?: string;
