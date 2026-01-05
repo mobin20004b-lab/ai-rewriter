@@ -25,13 +25,23 @@ type OpenAIMockInstance = {
 const openAIConstructor = OpenAI as unknown as ReturnType<typeof vi.fn>;
 
 const setChromeSettings = (settings: { apiKey: string; provider: 'openrouter'; model?: string }) => {
-  (globalThis as typeof globalThis & { chrome?: unknown }).chrome = {
+  const chromeMock = {
     storage: {
       sync: {
-        get: vi.fn((_: string[], cb: (result: typeof settings) => void) => cb(settings)),
+        get: vi.fn((keys?: unknown, cb?: (result: typeof settings) => void) => {
+          if (typeof keys === 'function') {
+            keys(settings);
+            return;
+          }
+          if (cb) {
+            cb(settings);
+          }
+        }),
       },
     },
   };
+
+  (globalThis as typeof globalThis & { chrome?: unknown }).chrome = chromeMock;
 };
 
 describe('AIService', () => {
