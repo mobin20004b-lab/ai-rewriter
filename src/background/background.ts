@@ -44,14 +44,14 @@ const createContextMenus = () => {
     chrome.contextMenus.create({
       id: 'aiRewriter',
       title: 'AI Rewriter',
-      contexts: ['selection', 'editable'],
+      contexts: ['all'],
     });
     menuItems.forEach((item) => {
       chrome.contextMenus.create({
         id: item.id,
         parentId: 'aiRewriter',
         title: item.title,
-        contexts: ['selection', 'editable'],
+        contexts: ['all'],
       });
     });
   });
