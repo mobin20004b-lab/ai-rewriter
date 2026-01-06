@@ -120,14 +120,6 @@ class ContentScript {
         this.selectionText = selectionText;
       }
     });
-    this.selectionButton.addEventListener('pointerup', () => {
-      this.isSelectionButtonPressed = false;
-      setTimeout(() => {
-        if (!this.isSelectionButtonPressed) {
-          this.pendingSelectionText = '';
-        }
-      }, 0);
-    });
     this.selectionButton.addEventListener('pointercancel', () => {
       this.isSelectionButtonPressed = false;
       this.pendingSelectionText = '';
