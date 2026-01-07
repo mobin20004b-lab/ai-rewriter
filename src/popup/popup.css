@@ -134,6 +134,24 @@ button.secondary:hover {
   transition: opacity 0.2s;
 }
 
+.model-status {
+  min-height: 16px;
+  font-size: 12px;
+  color: #9aa0a6;
+}
+
+.model-status.info {
+  color: #8ab4f8;
+}
+
+.model-status.success {
+  color: #4caf50;
+}
+
+.model-status.error {
+  color: #ffb4ab;
+}
+
 .help-text {
   margin: 0;
   font-size: 12px;
