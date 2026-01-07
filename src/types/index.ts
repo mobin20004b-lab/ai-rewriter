@@ -23,6 +23,7 @@ export interface Message {
     | 'STREAM_TOKEN'
     | 'STREAM_END'
     | 'STREAM_ERROR'
+    | 'STREAM_CANCEL'
     | 'GET_SELECTED_TEXT'
     | 'GET_LAST_SELECTION'
     | 'REWRITE_SELECTED_TEXT';

@@ -39,10 +39,13 @@ const menuItems = [
   },
 ];
 
+const activeStreams = new Map<number, { cancelled: boolean }>();
+
 const runRewrite = async (tabId: number, selectedText: string, instruction: string) => {
   let streamErrorEmitted = false;
   try {
     const aiService = AIService.getInstance();
+    activeStreams.set(tabId, { cancelled: false });
 
     chrome.tabs.sendMessage(tabId, {
       type: 'STREAM_START',
@@ -51,6 +54,9 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
 
     const response = await aiService.rewriteText(selectedText, { instruction }, {
       onToken: (token: string) => {
+        if (activeStreams.get(tabId)?.cancelled) {
+          return;
+        }
         chrome.tabs.sendMessage(tabId, {
           type: 'STREAM_TOKEN',
           payload: {
@@ -59,12 +65,18 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
         } as Message);
       },
       onComplete: () => {
+        if (activeStreams.get(tabId)?.cancelled) {
+          return;
+        }
         chrome.tabs.sendMessage(tabId, {
           type: 'STREAM_END',
           payload: {},
         } as Message);
       },
       onError: (error: string) => {
+        if (activeStreams.get(tabId)?.cancelled) {
+          return;
+        }
         streamErrorEmitted = true;
         chrome.tabs.sendMessage(tabId, {
           type: 'STREAM_ERROR',
@@ -91,13 +103,30 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
         error: 'Failed to rewrite text. Please try again.',
       },
     } as Message);
+  } finally {
+    activeStreams.delete(tabId);
   }
 };
 
 chrome.runtime.onMessage.addListener((message: Message, sender) => {
-  if (message.type !== 'REWRITE_SELECTED_TEXT') return false;
   const tabId = sender.tab?.id;
-  if (!tabId || !message.payload.text) return false;
+  if (!tabId) return false;
+
+  if (message.type === 'STREAM_CANCEL') {
+    const activeStream = activeStreams.get(tabId);
+    if (activeStream) {
+      activeStream.cancelled = true;
+    }
+    AIService.getInstance().cancelStream();
+    chrome.tabs.sendMessage(tabId, {
+      type: 'STREAM_END',
+      payload: {},
+    } as Message);
+    return false;
+  }
+
+  if (message.type !== 'REWRITE_SELECTED_TEXT') return false;
+  if (!message.payload.text) return false;
 
   const defaultInstruction = menuItems[0]?.instruction ?? 'Rewrite the following text in clear, basic English.';
   void runRewrite(tabId, message.payload.text, defaultInstruction);
