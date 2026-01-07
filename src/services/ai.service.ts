@@ -59,9 +59,9 @@ export class AIService {
   }
 
   public async rewriteText(text: string, options: RewriteOptions = {}, callbacks?: StreamCallbacks): Promise<AIResponse> {
+    let errorHandled = false;
     try {
       const settings = await this.getSettings();
-      let errorHandled = false;
       
       if (!settings.apiKey) {
         return {
