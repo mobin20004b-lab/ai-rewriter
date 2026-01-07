@@ -178,14 +178,23 @@ export class AIService {
       const prompt = `${instruction}\n${text}`;
 
       if (callbacks) {
-        const result = await model.generateContentStream(prompt);
+        this.abortController = new AbortController();
+        const result = await model.generateContentStream(prompt, { signal: this.abortController.signal });
         let fullContent = '';
+        let wasCancelled = false;
 
         try {
           for await (const chunk of result.stream) {
+            if (this.abortController?.signal.aborted) {
+              wasCancelled = true;
+              break;
+            }
             const chunkText = chunk.text();
             fullContent += chunkText;
             callbacks.onToken(chunkText);
+          }
+          if (wasCancelled) {
+            return { success: true, content: fullContent, isStreaming: true };
           }
           callbacks.onComplete();
           return { success: true, content: fullContent, isStreaming: true };
@@ -196,7 +205,8 @@ export class AIService {
           throw error;
         }
       } else {
-        const result = await model.generateContent(prompt);
+        this.abortController = new AbortController();
+        const result = await model.generateContent(prompt, { signal: this.abortController.signal });
         const response = await result.response;
         const text = response.text();
         return {
