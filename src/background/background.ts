@@ -109,14 +109,14 @@ const createContextMenus = () => {
     chrome.contextMenus.create({
       id: 'aiRewriter',
       title: 'AI Rewriter',
-      contexts: ['all'],
+      contexts: ['selection', 'editable'],
     });
     menuItems.forEach((item) => {
       chrome.contextMenus.create({
         id: item.id,
         parentId: 'aiRewriter',
         title: item.title,
-        contexts: ['all'],
+        contexts: ['selection', 'editable'],
       });
     });
   });
@@ -142,6 +142,18 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       try {
         const response = (await chrome.tabs.sendMessage(tabId, {
           type: 'GET_SELECTED_TEXT',
+          payload: {},
+        } as Message)) as { selectedText?: string };
+        selectedText = response?.selectedText?.trim() || '';
+      } catch (error) {
+        selectedText = '';
+      }
+    }
+
+    if (!selectedText) {
+      try {
+        const response = (await chrome.tabs.sendMessage(tabId, {
+          type: 'GET_LAST_SELECTION',
           payload: {},
         } as Message)) as { selectedText?: string };
         selectedText = response?.selectedText?.trim() || '';

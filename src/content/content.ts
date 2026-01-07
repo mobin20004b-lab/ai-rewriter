@@ -14,6 +14,7 @@ class ContentScript {
   private selectionButton: HTMLButtonElement | null = null;
   private selectionText: string = '';
   private pendingSelectionText: string = '';
+  private lastSelectionText: string = '';
   private isSelectionButtonPressed: boolean = false;
   private selectionUpdateRaf: number | null = null;
   private escapeKeyListenerAttached: boolean = false;
@@ -415,6 +416,7 @@ class ContentScript {
     }
 
     const selectedText = this.getSelectedText();
+    this.updateLastSelection(selectedText);
     if (!selectedText) {
       this.hideSelectionButton();
       return;
@@ -428,6 +430,12 @@ class ContentScript {
 
     this.selectionText = selectedText;
     this.positionSelectionButton(rect);
+  }
+
+  private updateLastSelection(selectedText: string): void {
+    if (selectedText.trim()) {
+      this.lastSelectionText = selectedText.trim();
+    }
   }
 
   private getSelectionRect(): DOMRect | null {
@@ -601,6 +609,9 @@ class ContentScript {
       switch (message.type) {
         case 'GET_SELECTED_TEXT':
           sendResponse({ selectedText: this.getSelectedText() });
+          return true;
+        case 'GET_LAST_SELECTION':
+          sendResponse({ selectedText: this.lastSelectionText || this.getSelectedText() });
           return true;
         case 'REWRITE_TEXT':
           if (message.payload.text) {

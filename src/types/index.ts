@@ -24,6 +24,7 @@ export interface Message {
     | 'STREAM_END'
     | 'STREAM_ERROR'
     | 'GET_SELECTED_TEXT'
+    | 'GET_LAST_SELECTION'
     | 'REWRITE_SELECTED_TEXT';
   payload: {
     text?: string;
