@@ -160,10 +160,10 @@ class ContentScript {
         this.isSelectionButtonPressed = false;
         return;
       }
-      chrome.runtime.sendMessage({
+      this.sendRuntimeMessage({
         type: 'REWRITE_SELECTED_TEXT',
         payload: { text },
-      } as Message);
+      });
       this.pendingSelectionText = '';
       this.hideSelectionButton();
       this.isSelectionButtonPressed = false;
@@ -305,10 +305,10 @@ class ContentScript {
   private cancelStreaming(): void {
     if (!this.isStreaming) return;
     this.setButtonDisabled(this.stopButton, true);
-    chrome.runtime.sendMessage({
+    this.sendRuntimeMessage({
       type: 'STREAM_CANCEL',
       payload: {},
-    } as Message);
+    });
   }
 
   private async copyToClipboard(): Promise<void> {
@@ -673,41 +673,65 @@ class ContentScript {
   }
 
   private initializeMessageListener(): void {
-    chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
-      switch (message.type) {
-        case 'GET_SELECTED_TEXT':
-          sendResponse({ selectedText: this.getSelectedText() });
-          return true;
-        case 'GET_LAST_SELECTION':
-          sendResponse({ selectedText: this.lastSelectionText || this.getSelectedText() });
-          return true;
-        case 'REWRITE_TEXT':
-          if (message.payload.text) {
-            this.showSuggestionCard(message.payload.text);
-          }
-          break;
-        case 'STREAM_START':
-          this.startStreaming();
-          break;
-        case 'STREAM_TOKEN':
-          if (message.payload.token) {
-            this.appendStreamToken(message.payload.token);
-          }
-          break;
-        case 'STREAM_END':
-          this.endStreaming();
-          break;
-        case 'STREAM_ERROR':
-        case 'SHOW_ERROR':
-          if (message.payload.error) {
+    if (!this.isRuntimeAvailable()) {
+      return;
+    }
+
+    try {
+      chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
+        switch (message.type) {
+          case 'GET_SELECTED_TEXT':
+            sendResponse({ selectedText: this.getSelectedText() });
+            return true;
+          case 'GET_LAST_SELECTION':
+            sendResponse({ selectedText: this.lastSelectionText || this.getSelectedText() });
+            return true;
+          case 'REWRITE_TEXT':
+            if (message.payload.text) {
+              this.showSuggestionCard(message.payload.text);
+            }
+            break;
+          case 'STREAM_START':
+            this.startStreaming();
+            break;
+          case 'STREAM_TOKEN':
+            if (message.payload.token) {
+              this.appendStreamToken(message.payload.token);
+            }
+            break;
+          case 'STREAM_END':
             this.endStreaming();
-            this.showToast(message.payload.error, true);
-            this.hideSuggestionCard();
-          }
-          break;
-      }
-      return false;
-    });
+            break;
+          case 'STREAM_ERROR':
+          case 'SHOW_ERROR':
+            if (message.payload.error) {
+              this.endStreaming();
+              this.showToast(message.payload.error, true);
+              this.hideSuggestionCard();
+            }
+            break;
+        }
+        return false;
+      });
+    } catch (error) {
+      // Extension context can be invalidated; ignore if runtime APIs are unavailable.
+    }
+  }
+
+  private isRuntimeAvailable(): boolean {
+    return Boolean(chrome?.runtime?.id);
+  }
+
+  private sendRuntimeMessage(message: Message): void {
+    if (!this.isRuntimeAvailable()) {
+      return;
+    }
+
+    try {
+      chrome.runtime.sendMessage(message);
+    } catch (error) {
+      // Extension context can be invalidated; ignore if runtime APIs are unavailable.
+    }
   }
 }
 
