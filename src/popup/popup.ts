@@ -10,10 +10,13 @@ class PopupUI {
   private providerSelect: HTMLSelectElement;
   private modelInput: HTMLInputElement;
   private modelDataList: HTMLDataListElement;
+  private modelStatusElement: HTMLDivElement;
   private refreshModelsButton: HTMLButtonElement;
   private saveButton: HTMLButtonElement;
   private resetButton: HTMLButtonElement;
   private statusElement: HTMLDivElement;
+
+  private readonly modelCacheTtlMs = 24 * 60 * 60 * 1000;
 
   constructor() {
     this.storageService = StorageService.getInstance();
@@ -23,6 +26,7 @@ class PopupUI {
     this.providerSelect = document.getElementById('provider') as HTMLSelectElement;
     this.modelInput = document.getElementById('modelInput') as HTMLInputElement;
     this.modelDataList = document.getElementById('models-list') as HTMLDataListElement;
+    this.modelStatusElement = document.getElementById('modelStatus') as HTMLDivElement;
     this.refreshModelsButton = document.getElementById('refreshModels') as HTMLButtonElement;
     this.saveButton = document.getElementById('saveBtn') as HTMLButtonElement;
     this.resetButton = document.getElementById('resetBtn') as HTMLButtonElement;
@@ -51,8 +55,7 @@ class PopupUI {
         const apiKey = this.apiKeyInput.value;
         const provider = this.providerSelect.value as Provider;
         if (apiKey) {
-            await this.fetchAndPopulateModels(provider, apiKey);
-            this.showStatus('Models refreshed!', 'success');
+            await this.fetchAndPopulateModels(provider, apiKey, { forceRefresh: true });
         } else {
             this.showStatus('Please enter API Key first', 'error');
         }
@@ -61,6 +64,7 @@ class PopupUI {
     // Auto-fetch models when provider changes if API key is present
     this.providerSelect.addEventListener('change', () => {
         this.providerSelect.classList.remove('field-invalid');
+        this.clearModelStatus();
         const apiKey = this.apiKeyInput.value;
         const provider = this.providerSelect.value as Provider;
         if (apiKey) {
@@ -71,6 +75,7 @@ class PopupUI {
     // Also when API key is blurred, if it changed
     this.apiKeyInput.addEventListener('blur', () => {
         this.apiKeyInput.classList.remove('field-invalid');
+        this.clearModelStatus();
         const apiKey = this.apiKeyInput.value;
         const provider = this.providerSelect.value as Provider;
         if (apiKey) {
@@ -80,24 +85,51 @@ class PopupUI {
 
     this.modelInput.addEventListener('input', () => {
         this.modelInput.classList.remove('field-invalid');
+        this.clearModelStatus();
     });
   }
 
-  private async fetchAndPopulateModels(provider: Provider, apiKey: string): Promise<void> {
+  private async fetchAndPopulateModels(
+    provider: Provider,
+    apiKey: string,
+    options: { forceRefresh?: boolean } = {}
+  ): Promise<void> {
+    const cacheEntry = await this.storageService.getModelCache(provider);
+    const isCacheFresh =
+      !!cacheEntry && Date.now() - cacheEntry.fetchedAt < this.modelCacheTtlMs;
+
+    if (!options.forceRefresh && cacheEntry && isCacheFresh) {
+      this.populateModelList(cacheEntry.models);
+      this.setModelStatus(
+        `Using cached ${this.getProviderLabel(provider)} models (updated ${this.formatTimestamp(cacheEntry.fetchedAt)}).`,
+        'info'
+      );
+      return;
+    }
+
     this.refreshModelsButton.disabled = true;
     this.refreshModelsButton.textContent = '...';
+    this.setModelStatus(`Fetching ${this.getProviderLabel(provider)} models...`, 'info');
 
     try {
         const models = await this.aiService.fetchModels(provider, apiKey);
-        this.modelDataList.innerHTML = '';
-        models.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model;
-            this.modelDataList.appendChild(option);
-        });
+        this.populateModelList(models);
+        await this.storageService.setModelCache(provider, models);
+        this.setModelStatus(
+          `Models updated ${this.formatTimestamp(Date.now())}.`,
+          'success'
+        );
     } catch (error) {
         console.error('Failed to fetch models', error);
-        this.showStatus('Failed to fetch models', 'error');
+        if (cacheEntry?.models?.length) {
+          this.populateModelList(cacheEntry.models);
+          this.setModelStatus(
+            `Using cached ${this.getProviderLabel(provider)} models from ${this.formatTimestamp(cacheEntry.fetchedAt)} (refresh failed).`,
+            'error'
+          );
+        } else {
+          this.setModelStatus('Failed to fetch models. Check your API key and try again.', 'error');
+        }
     } finally {
         this.refreshModelsButton.disabled = false;
         this.refreshModelsButton.textContent = '↻';
@@ -204,6 +236,29 @@ class PopupUI {
     this.apiKeyInput.classList.remove('field-invalid');
     this.providerSelect.classList.remove('field-invalid');
     this.modelInput.classList.remove('field-invalid');
+  }
+
+  private populateModelList(models: string[]): void {
+    this.modelDataList.innerHTML = '';
+    models.forEach(model => {
+      const option = document.createElement('option');
+      option.value = model;
+      this.modelDataList.appendChild(option);
+    });
+  }
+
+  private setModelStatus(message: string, type: 'info' | 'success' | 'error'): void {
+    this.modelStatusElement.textContent = message;
+    this.modelStatusElement.className = `model-status ${type}`;
+  }
+
+  private clearModelStatus(): void {
+    this.modelStatusElement.textContent = '';
+    this.modelStatusElement.className = 'model-status';
+  }
+
+  private formatTimestamp(timestamp: number): string {
+    return new Date(timestamp).toLocaleString();
   }
 
   private showStatus(message: string, type: 'success' | 'error'): void {
