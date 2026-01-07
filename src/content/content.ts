@@ -18,6 +18,10 @@ class ContentScript {
   private isSelectionButtonPressed: boolean = false;
   private selectionUpdateRaf: number | null = null;
   private escapeKeyListenerAttached: boolean = false;
+  private pendingTokens: string = '';
+  private streamFlushRaf: number | null = null;
+  private streamTextNode: Text | null = null;
+  private streamCursor: HTMLSpanElement | null = null;
   private static readonly cursorStyleId = 'ai-rewriter-cursor-style';
 
   constructor() {
@@ -312,17 +316,23 @@ class ContentScript {
 
     this.isStreaming = true;
     this.streamContent = '';
+    this.pendingTokens = '';
+    if (this.streamFlushRaf !== null) {
+      cancelAnimationFrame(this.streamFlushRaf);
+      this.streamFlushRaf = null;
+    }
     this.showSuggestionCard('', true);
 
     // Update UI for streaming state
     const content = this.suggestionContent;
     if (content) {
       content.textContent = '';
-      // Add blinking cursor effect
-      const cursor = document.createElement('span');
-      cursor.className = 'typing-cursor';
-      cursor.textContent = '|';
-      content.appendChild(cursor);
+      this.streamTextNode = document.createTextNode('');
+      content.appendChild(this.streamTextNode);
+      this.streamCursor = document.createElement('span');
+      this.streamCursor.className = 'typing-cursor';
+      this.streamCursor.textContent = '|';
+      content.appendChild(this.streamCursor);
     }
   }
 
@@ -332,37 +342,47 @@ class ContentScript {
     const content = this.suggestionContent;
     if (!content) return;
 
-    this.streamContent += token;
-    
-    // Remove existing cursor
-    const cursor = content.querySelector('.typing-cursor');
-    if (cursor) {
-      cursor.remove();
+    this.pendingTokens += token;
+    if (this.streamFlushRaf === null) {
+      this.streamFlushRaf = requestAnimationFrame(() => this.flushPendingTokens());
+    }
+  }
+
+  private flushPendingTokens(force: boolean = false): void {
+    if (!this.isStreaming && !force) {
+      return;
     }
 
-    // Update content with new token
-    content.textContent = this.streamContent;
+    if (!this.pendingTokens) {
+      this.streamFlushRaf = null;
+      return;
+    }
 
-    // Add cursor back
-    const newCursor = document.createElement('span');
-    newCursor.className = 'typing-cursor';
-    newCursor.textContent = '|';
-    content.appendChild(newCursor);
+    if (!this.streamTextNode) {
+      this.streamTextNode = document.createTextNode('');
+      this.suggestionContent?.insertBefore(
+        this.streamTextNode,
+        this.streamCursor || null,
+      );
+    }
+
+    this.streamContent += this.pendingTokens;
+    this.streamTextNode.appendData(this.pendingTokens);
+    this.pendingTokens = '';
+    this.rewrittenText = this.streamContent;
+    this.streamFlushRaf = null;
   }
 
   private endStreaming(): void {
     if (!this.suggestionCard) return;
 
+    this.flushPendingTokens(true);
     this.isStreaming = false;
-    this.rewrittenText = this.streamContent;
 
     // Remove cursor
     const content = this.suggestionContent;
     if (content) {
-      const cursor = content.querySelector('.typing-cursor');
-      if (cursor) {
-        cursor.remove();
-      }
+      this.streamCursor?.remove();
     }
   }
 
