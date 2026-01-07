@@ -719,7 +719,11 @@ class ContentScript {
   }
 
   private isRuntimeAvailable(): boolean {
-    return Boolean(chrome?.runtime?.id);
+    try {
+      return Boolean(chrome?.runtime?.id);
+    } catch (error) {
+      return false;
+    }
   }
 
   private sendRuntimeMessage(message: Message): void {
