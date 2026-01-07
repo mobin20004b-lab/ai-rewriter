@@ -22,6 +22,9 @@ class ContentScript {
   private streamFlushRaf: number | null = null;
   private streamTextNode: Text | null = null;
   private streamCursor: HTMLSpanElement | null = null;
+  private copyButton: HTMLButtonElement | null = null;
+  private stopButton: HTMLButtonElement | null = null;
+  private closeButton: HTMLButtonElement | null = null;
   private static readonly cursorStyleId = 'ai-rewriter-cursor-style';
 
   constructor() {
@@ -144,6 +147,10 @@ class ContentScript {
     this.selectionButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (this.isStreaming) {
+        this.showToast('Stop the current rewrite before starting a new one.', true);
+        return;
+      }
       const text =
         this.pendingSelectionText.trim() ||
         this.getSelectedText().trim() ||
@@ -204,6 +211,7 @@ class ContentScript {
     `;
 
     const closeButton = document.createElement('button');
+    this.closeButton = closeButton;
     closeButton.innerHTML = '✕';
     closeButton.style.cssText = `
       background: none;
@@ -243,9 +251,16 @@ class ContentScript {
       justify-content: flex-end;
     `;
 
+    const stopButton = this.createButton('Stop', '⏹️');
+    this.stopButton = stopButton;
+    stopButton.style.display = 'none';
+    stopButton.addEventListener('click', () => this.cancelStreaming());
+
     const copyButton = this.createButton('Copy', '📋');
+    this.copyButton = copyButton;
     copyButton.addEventListener('click', () => this.copyToClipboard());
 
+    buttonContainer.appendChild(stopButton);
     buttonContainer.appendChild(copyButton);
 
     this.suggestionCard.appendChild(header);
@@ -278,6 +293,22 @@ class ContentScript {
       button.style.backgroundColor = '#3c3c3c';
     });
     return button;
+  }
+
+  private setButtonDisabled(button: HTMLButtonElement | null, isDisabled: boolean): void {
+    if (!button) return;
+    button.disabled = isDisabled;
+    button.style.opacity = isDisabled ? '0.6' : '1';
+    button.style.cursor = isDisabled ? 'not-allowed' : 'pointer';
+  }
+
+  private cancelStreaming(): void {
+    if (!this.isStreaming) return;
+    this.setButtonDisabled(this.stopButton, true);
+    chrome.runtime.sendMessage({
+      type: 'STREAM_CANCEL',
+      payload: {},
+    } as Message);
   }
 
   private async copyToClipboard(): Promise<void> {
@@ -322,6 +353,7 @@ class ContentScript {
       this.streamFlushRaf = null;
     }
     this.showSuggestionCard('', true);
+    this.setStreamingState(true);
 
     // Update UI for streaming state
     const content = this.suggestionContent;
@@ -378,6 +410,7 @@ class ContentScript {
 
     this.flushPendingTokens(true);
     this.isStreaming = false;
+    this.setStreamingState(false);
 
     // Remove cursor
     const content = this.suggestionContent;
@@ -386,7 +419,21 @@ class ContentScript {
     }
   }
 
+  private setStreamingState(isStreaming: boolean): void {
+    this.setButtonDisabled(this.copyButton, isStreaming);
+    this.setButtonDisabled(this.closeButton, isStreaming);
+
+    if (this.stopButton) {
+      this.stopButton.style.display = isStreaming ? 'inline-flex' : 'none';
+      this.setButtonDisabled(this.stopButton, false);
+    }
+  }
+
   private hideSuggestionCard(): void {
+    if (this.isStreaming) {
+      this.cancelStreaming();
+      return;
+    }
     if (this.suggestionCard && this.overlay) {
       this.suggestionCard.style.display = 'none';
       this.overlay.style.display = 'none';
@@ -428,6 +475,7 @@ class ContentScript {
 
   private handleSelectionChange(): void {
     if (!this.selectionButton) return;
+    if (this.isStreaming) return;
     if (this.isSelectionButtonPressed) return;
     if (document.activeElement === this.selectionButton) return;
     if (this.overlay?.style.display === 'block') {
@@ -652,6 +700,7 @@ class ContentScript {
         case 'STREAM_ERROR':
         case 'SHOW_ERROR':
           if (message.payload.error) {
+            this.endStreaming();
             this.showToast(message.payload.error, true);
             this.hideSuggestionCard();
           }
