@@ -117,7 +117,15 @@ class PopupUI {
 
     try {
       await this.storageService.saveSettings(settings);
-      this.showStatus('Settings saved successfully!', 'success');
+      if (!settings.model) {
+        const defaultModel = this.getDefaultModel(settings.provider);
+        this.showStatus(
+          `Settings saved. Using default model (${defaultModel}) for ${this.getProviderLabel(settings.provider)}.`,
+          'success'
+        );
+      } else {
+        this.showStatus('Settings saved successfully!', 'success');
+      }
     } catch (error) {
       this.showStatus('Failed to save settings', 'error');
     }
@@ -151,9 +159,7 @@ class PopupUI {
 
     const model = this.modelInput.value.trim();
     if (!model) {
-      this.modelInput.classList.add('field-invalid');
-      this.showStatus('Please enter a model name.', 'error');
-      return false;
+      return true;
     }
 
     const modelError = this.getModelFormatError(provider, model);
@@ -176,6 +182,22 @@ class PopupUI {
     }
 
     return null;
+  }
+
+  private getDefaultModel(provider: Provider): string {
+    if (provider === 'gemini') {
+      return 'gemini-1.5-flash';
+    }
+
+    return 'openai/gpt-4o-mini';
+  }
+
+  private getProviderLabel(provider: Provider): string {
+    if (provider === 'gemini') {
+      return 'Gemini';
+    }
+
+    return 'OpenRouter';
   }
 
   private clearValidationStates(): void {
