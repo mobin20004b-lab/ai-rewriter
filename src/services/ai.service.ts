@@ -61,6 +61,7 @@ export class AIService {
   public async rewriteText(text: string, options: RewriteOptions = {}, callbacks?: StreamCallbacks): Promise<AIResponse> {
     try {
       const settings = await this.getSettings();
+      let errorHandled = false;
       
       if (!settings.apiKey) {
         return {
@@ -108,9 +109,16 @@ export class AIService {
           return { success: true, content: fullContent, isStreaming: true };
         } catch (error) {
           if (error instanceof Error) {
+            errorHandled = true;
             callbacks.onError(error.message);
           }
-          throw error;
+          return {
+            success: false,
+            content: '',
+            error: error instanceof Error ? error.message : 'An unknown error occurred',
+            isStreaming: true,
+            errorHandled,
+          };
         }
       }
 
@@ -128,6 +136,7 @@ export class AIService {
         content: '',
         error: error instanceof Error ? error.message : 'An unknown error occurred',
         isStreaming: false,
+        errorHandled,
       };
     }
   }
@@ -199,10 +208,16 @@ export class AIService {
           callbacks.onComplete();
           return { success: true, content: fullContent, isStreaming: true };
         } catch (error) {
-           if (error instanceof Error) {
+          if (error instanceof Error) {
             callbacks.onError(error.message);
           }
-          throw error;
+          return {
+            success: false,
+            content: '',
+            error: error instanceof Error ? error.message : 'An unknown error occurred with Gemini',
+            isStreaming: true,
+            errorHandled: true,
+          };
         }
       } else {
         this.abortController = new AbortController();
