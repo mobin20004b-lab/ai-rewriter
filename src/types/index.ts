@@ -11,6 +11,7 @@ export interface AIResponse {
   content: string;
   error?: string;
   isStreaming?: boolean;
+  errorHandled?: boolean;
 }
 
 export interface Message {

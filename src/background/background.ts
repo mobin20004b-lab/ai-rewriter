@@ -40,6 +40,7 @@ const menuItems = [
 ];
 
 const runRewrite = async (tabId: number, selectedText: string, instruction: string) => {
+  let streamErrorEmitted = false;
   try {
     const aiService = AIService.getInstance();
 
@@ -64,6 +65,7 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
         } as Message);
       },
       onError: (error: string) => {
+        streamErrorEmitted = true;
         chrome.tabs.sendMessage(tabId, {
           type: 'STREAM_ERROR',
           payload: {
@@ -73,7 +75,7 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
       },
     });
 
-    if (!response.success) {
+    if (!response.success && !streamErrorEmitted && !response.errorHandled) {
       chrome.tabs.sendMessage(tabId, {
         type: 'STREAM_ERROR',
         payload: {
@@ -82,6 +84,7 @@ const runRewrite = async (tabId: number, selectedText: string, instruction: stri
       } as Message);
     }
   } catch (error) {
+    if (streamErrorEmitted) return;
     chrome.tabs.sendMessage(tabId, {
       type: 'STREAM_ERROR',
       payload: {
